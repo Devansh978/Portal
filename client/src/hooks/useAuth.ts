@@ -1,50 +1,130 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { authService, type AuthUser } from "@/lib/auth";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { authService, UserRole, type AuthUser } from "@/lib/auth";
 
 export function useAuth() {
-  const [user, setUser] = useState<AuthUser | null>(authService.getUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const initializationRef = useRef(false);
 
-  // Check for existing authentication on mount
+  // Initialize auth state on mount
   useEffect(() => {
-    const checkAuth = async () => {
+    if (initializationRef.current) return;
+    initializationRef.current = true;
+
+    const initializeAuth = async () => {
       try {
-        const currentUser = await authService.getCurrentUser();
+        const token = authService.getToken();
+        if (!token) {
+          setIsLoading(false);
+          return;
+        }
+
+        // Try to get cached user first
+        const cachedUser = authService.getUser();
+        if (cachedUser) {
+          setUser(cachedUser);
+          setIsLoading(false);
+          return;
+        }
+
+        // If no cached user but token exists, fetch current user
+        const currentUser = await authService.getUser();
         setUser(currentUser);
-      } catch (error) {
+      } catch (err) {
+        console.warn('Auth initialization failed:', err);
         setUser(null);
+        setError('Authentication failed');
+        // Clear invalid token
+        authService.clearToken?.();
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Only check if we have a token but no user data
-    if (authService.getToken() && !user) {
-      checkAuth();
-    } else {
+    initializeAuth();
+  }, []);
+
+  const login = useCallback(async (credentials: {
+    username: string; password: string; token: string;
+    refreshToken?: string;
+    user: AuthUser["role"];
+    message?: string;
+    firstname?: string;
+    lastname?: string;
+  }) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await authService.login(credentials);
+      // If response.user is just a role, fetch the full user object
+      if (typeof response.user === "string") {
+        const currentUser = await authService.getUser();
+        setUser(currentUser);
+        return { ...response, user: currentUser };
+      } else {
+        setUser(response.user);
+        return response;
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
+
+      // Check if login actually succeeded despite the error
+      const token = authService.getToken();
+      const currentUser = authService.getUser();
+
+      if (token && currentUser) {
+        console.warn('Login succeeded despite error:', errorMessage);
+        setUser(currentUser);
+        setError(null);
+        return { user: currentUser };
+      }
+
+      throw err;
+    } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const logout = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await authService.logout();
+      setUser(null);
+      setError(null);
+    } catch (err) {
+      console.warn('Logout error:', err);
+      // Clear state anyway
+      setUser(null);
+      setError(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const hasRole = useCallback((roles: string[]) => {
+    return user ? roles.includes(user.role) : false;
   }, [user]);
 
-  const login = async (credentials: { username: string; password: string }) => {
-    const response = await authService.login(credentials);
-    setUser(response.user);
-    return response;
-  };
+  const hasPermission = useCallback((permission: string) => {
+    return authService.hasPermission(permission);
+  }, []);
 
-  const logout = async () => {
-    await authService.logout();
-    setUser(null);
-  };
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   return {
     user,
     isLoading,
+    error,
     isAuthenticated: !!user,
     login,
     logout,
-    hasRole: (roles: string[]) => user ? roles.includes(user.role) : false,
-    hasPermission: (permission: string) => authService.hasPermission(permission),
+    hasRole,
+    hasPermission,
+    clearError,
   };
 }

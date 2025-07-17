@@ -50,6 +50,7 @@
     "axios": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cors": "^2.8.5",
     "css": "^3.0.0",
     "date-fns": "^3.6.0",
     "dom": "^0.0.3",
@@ -72,7 +73,7 @@
     "tailwind": "^4.0.0",
     "tailwind-merge": "^2.6.0",
     "vaul": "^1.1.2",
-    "wouter": "^3.3.5",
+    "wouter": "^3.7.1",
     "zod": "^3.25.75"
   },
   "devDependencies": {
@@ -80,6 +81,7 @@
     "@types/node": "^24.0.10",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.1",
+    "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.30.1",

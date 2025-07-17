@@ -3,7 +3,7 @@
 import { QueryClient, QueryFunction, QueryKey } from "@tanstack/react-query";
 
 type ApiRequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD";
   body?: any;
   headers?: Record<string, string>;
   credentials?: RequestCredentials;
@@ -405,7 +405,7 @@ export const queryClient = new QueryClient({
         return failureCount < 3;
       },
       staleTime: 5 * 60 * 1000,
-      cacheTime: 15 * 60 * 1000,
+      // cacheTime: 15 * 60 * 1000,
     },
     mutations: {
       retry: false,

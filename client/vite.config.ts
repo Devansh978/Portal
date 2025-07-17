@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
@@ -13,5 +13,14 @@ export default defineConfig({
       '@lib': path.resolve(__dirname, './src/lib'),
       '@hooks': path.resolve(__dirname, './src/hooks')
     }
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://homobiebackend-railway-production.up.railway.app', // Your backend server
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/auth/, ''),
+      },
+    },
   }
-})
+});

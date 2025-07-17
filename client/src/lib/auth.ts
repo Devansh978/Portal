@@ -17,8 +17,14 @@ export interface AuthUser {
 export type UserRole = "super_admin" | "admin" | "ca" | "builder" | "broker" | "user" | "telecaller";
 
 export interface LoginCredentials {
-  email: string;
+  username: string;
   password: string;
+  token: string;
+  refreshToken?: string;
+  user: UserRole;
+  message?: string;
+  firstname?: string;
+  lastname?: string;
 }
 
 export interface RegisterData {
@@ -33,10 +39,14 @@ export interface RegisterData {
 }
 
 export interface AuthResponse {
+  username: string;
+  password: string;
   token: string;
   refreshToken?: string;
   user: AuthUser;
   message?: string;
+  firstname?: string;
+  lastname?: string;
 }
 
 export interface ApiError {
@@ -93,10 +103,14 @@ class AuthService {
     }
   }
 
+  // Clear token method for external use
+  clearToken() {
+    this.clearStorage();
+  }
+
   // Setup automatic token refresh
   private setupTokenRefresh() {
     if (typeof window !== "undefined" && this.token && this.refreshToken) {
-      // Refresh token 1 minute before expiration
       const jwt = this.parseJwt(this.token);
       if (jwt && jwt.exp) {
         const expiresIn = (jwt.exp * 1000) - Date.now() - 60000;
@@ -127,7 +141,8 @@ class AuthService {
         body: JSON.stringify(data),
       });
 
-      if (!response.token || !response.user) {
+      // Validate response structure
+      if (!this.isValidAuthResponse(response)) {
         throw new Error("Invalid response from server");
       }
 
@@ -140,26 +155,26 @@ class AuthService {
 
       return response;
     } catch (error) {
-      this.handleApiError(error, "Registration failed");
-      throw error;
+      throw this.createAuthError(error, "Registration failed");
     }
   }
 
-  // User login
+  // User login - FIXED VERSION
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
       const response = await apiRequest<AuthResponse>(`${this.baseUrl}/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
+        body: credentials,
+        skipAuth: true,
+        credentials: 'include'
       });
 
-      if (!response.token || !response.user) {
+      // Validate response structure before checking auth
+      if (!this.isValidAuthResponse(response)) {
         throw new Error("Invalid credentials");
       }
 
+      // Save auth data
       this.saveToStorage(
         response.token,
         response.refreshToken || "",
@@ -169,8 +184,8 @@ class AuthService {
 
       return response;
     } catch (error) {
-      this.handleApiError(error, "Login failed");
-      throw error;
+      // Don't call handleApiError here - it always throws
+      throw this.createAuthError(error, "Login failed");
     }
   }
 
@@ -193,7 +208,7 @@ class AuthService {
   }
 
   // Refresh auth token
-  private async refreshAuthToken(): Promise<void> {
+  public async refreshAuthToken(): Promise<void> {
     if (!this.refreshToken || this.tokenRefreshPromise) return;
 
     try {
@@ -203,7 +218,7 @@ class AuthService {
           Authorization: `Bearer ${this.refreshToken}`,
         },
       }).then(response => {
-        if (response.token && response.user) {
+        if (this.isValidAuthResponse(response)) {
           this.saveToStorage(
             response.token,
             response.refreshToken || this.refreshToken || "",
@@ -223,31 +238,31 @@ class AuthService {
   }
 
   // Get current user (with optional force refresh)
-  async getCurrentUser(forceRefresh = false): Promise<AuthUser | null> {
-    if (!this.token) return null;
+  // async getCurrentUser(forceRefresh = false): Promise<AuthUser | null> {
+  //   if (!this.token) return null;
 
-    if (forceRefresh) {
-      try {
-        const response = await apiRequest<{ user: AuthUser }>(`${this.baseUrl}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-          },
-        });
+  //   if (forceRefresh) {
+  //     try {
+  //       const response = await apiRequest<{ user: AuthUser }>(`${this.baseUrl}/auth/me`, {
+  //         headers: {
+  //           Authorization: `Bearer ${this.token}`,
+  //         },
+  //       });
 
-        if (response.user) {
-          this.user = response.user;
-          if (typeof window !== "undefined") {
-            localStorage.setItem("auth_user", JSON.stringify(response.user));
-          }
-          return response.user;
-        }
-      } catch (error) {
-        console.error("Failed to refresh user data:", error);
-      }
-    }
+  //       if (response.user) {
+  //         this.user = response.user;
+  //         if (typeof window !== "undefined") {
+  //           localStorage.setItem("auth_user", JSON.stringify(response.user));
+  //         }
+  //         return response.user;
+  //       }
+  //     } catch (error) {
+  //       console.error("Failed to refresh user data:", error);
+  //     }
+  //   }
 
-    return this.user;
-  }
+  //   return this.user;
+  // }
 
   // Verify email
   async verifyEmail(token: string): Promise<AuthResponse> {
@@ -257,7 +272,7 @@ class AuthService {
         body: JSON.stringify({ token }),
       });
 
-      if (response.token && response.user) {
+      if (this.isValidAuthResponse(response)) {
         this.saveToStorage(
           response.token,
           response.refreshToken || this.refreshToken || "",
@@ -268,8 +283,7 @@ class AuthService {
 
       return response;
     } catch (error) {
-      this.handleApiError(error, "Email verification failed");
-      throw error;
+      throw this.createAuthError(error, "Email verification failed");
     }
   }
 
@@ -289,7 +303,7 @@ class AuthService {
         body: JSON.stringify({ token, newPassword }),
       });
 
-      if (response.token && response.user) {
+      if (this.isValidAuthResponse(response)) {
         this.saveToStorage(
           response.token,
           response.refreshToken || "",
@@ -300,9 +314,18 @@ class AuthService {
 
       return response;
     } catch (error) {
-      this.handleApiError(error, "Password reset failed");
-      throw error;
+      throw this.createAuthError(error, "Password reset failed");
     }
+  }
+
+  // Validate auth response structure
+  private isValidAuthResponse(response: any): response is AuthResponse {
+    return response &&
+      typeof response.token === 'string' &&
+      response.token.length > 0 &&
+      response.user &&
+      typeof response.user === 'object' &&
+      response.user.id;
   }
 
   // Get current token
@@ -348,8 +371,6 @@ class AuthService {
       telecaller: [
         "manage_all_leads",
         "customize_leads",
-
-
       ],
       ca: [
         "manage_all_leads",
@@ -372,8 +393,8 @@ class AuthService {
     return rolePermissions[this.user.role]?.includes(permission) || false;
   }
 
-  // Handle API errors
-  private handleApiError(error: unknown, defaultMessage: string): never {
+  // FIXED: Create proper error without always throwing
+  private createAuthError(error: unknown, defaultMessage: string): Error {
     if (typeof error === "object" && error !== null) {
       const apiError = error as ApiError;
 
@@ -384,18 +405,20 @@ class AuthService {
         }
       }
 
-      throw new Error(apiError.message || defaultMessage);
+      return new Error(apiError.message || defaultMessage);
     } else if (typeof error === "string") {
-      throw new Error(error);
+      return new Error(error);
     } else {
-      throw new Error(defaultMessage);
+      return new Error(defaultMessage);
     }
   }
+
+  // DEPRECATED: The handleApiError method has been removed as it was unused.
 }
 
 export const authService = new AuthService();
 
-// Enhanced authenticated fetch
+// Enhanced authenticated fetch with better error handling
 export async function authenticatedFetch(
   url: string,
   options: RequestInit = {}

@@ -24,8 +24,14 @@ export interface registrationData {
   updatedAt: string;
 }
 export interface LoginCredentials {
-  email: string;
+  username: string;
   password: string;
+  token: string;
+  refreshToken?: string;
+  user: UserRole;
+  message?: string;
+  firstname?: string;
+  lastname?: string;
 }
 
 export interface User {

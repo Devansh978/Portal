@@ -9,16 +9,16 @@ import { GlassBackground } from "@/components/layout/GlassBackground";
 import { NewsletterModal, useNewsletterModal } from "@/components/ui/newsletter-modal";
 
 // Pages
-import  Dashboard from "@/pages/Dashboard";
-import  LeadManagementPage  from "@/pages/LeadManagement";
-import  UserManagement  from "@/pages/UserManagement";
-import   AuditLogs  from "@/pages/AuditLogs";
+import Dashboard from "@/pages/Dashboard";
+import LeadManagementPage from "@/pages/LeadManagement";
+import UserManagement from "@/pages/UserManagement";
+import AuditLogs from "@/pages/AuditLogs";
 import { Tracking } from "@/pages/Tracking";
-import  Analytics  from "@/pages/Analytics";
+import Analytics from "@/pages/Analytics";
 import { Settings } from "@/pages/Settings";
 import GlassLogin from "@/pages/GlassLogin";
-import  Register  from "@/pages/Register";
-import   NotFound  from "@/pages/not-found";
+import Register from "@/pages/Register";
+import NotFound from "@/pages/not-found";
 import { CRMIntegrationStatus } from "@/components/dashboard/CRMIntegrationStatus";
 import { DocumentManager } from "@/components/dashboard/DocumentManager";
 import BuilderDashboard from "@/pages/BuilderDashboard";
@@ -36,10 +36,6 @@ import NotificationCenter from "@/pages/NotificationCenter";
 import AssignmentManagement from "@/pages/AssignmentManagement";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
 import { NotificationManager } from "@/components/ui/animated-notification";
-
-// Layout components
-import { Layout, Sidebar, Content } from "@/components/ui/layout";
-import { Sidebar as DashboardSidebar } from "@/components/dashboard/Sidebar";
 import { ChatbotWidget } from "@/components/dashboard/ChatbotWidget";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -86,10 +82,28 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    return <Redirect to="/dashboard" />;
+    return <RoleBasedRedirect />;
   }
 
   return <>{children}</>;
+}
+
+function getRoleBasedRoute(role: string) {
+  const routes: Record<string, string> = {
+    super_admin: "/admin",
+    admin: "/admin",
+    builder: "/builder-dashboard",
+    telecaller: "/telecaller",
+    broker: "/broker",
+    ca: "/ca",
+    user: "/dashboard"
+  };
+  return routes[role] || "/dashboard";
+}
+
+function RoleBasedRedirectWrapper() {
+  const { user } = useAuth();
+  return <Redirect to={user ? getRoleBasedRoute(user.role) : "/login"} />;
 }
 
 function Router() {
@@ -111,7 +125,7 @@ function Router() {
       {/* Protected routes */}
       <Route path="/dashboard">
         <ProtectedRoute>
-          <RoleBasedRedirect />
+          <Dashboard />
         </ProtectedRoute>
       </Route>
 
@@ -131,7 +145,7 @@ function Router() {
         <ProtectedRoute>
           <Tracking />
         </ProtectedRoute>
-        </Route>
+      </Route>
 
       <Route path="/analytics">
         <ProtectedRoute>
@@ -178,12 +192,6 @@ function Router() {
       <Route path="/ca">
         <ProtectedRoute>
           <CADashboard />
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/leads">
-        <ProtectedRoute>
-          <LeadManagementPage />
         </ProtectedRoute>
       </Route>
 
@@ -247,9 +255,9 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
-      {/* Redirect root to dashboard */}
+      {/* Root redirect */}
       <Route path="/">
-        <Redirect to="/dashboard" />
+        <RoleBasedRedirectWrapper />
       </Route>
 
       {/* 404 fallback */}
