@@ -26,12 +26,7 @@ export interface registrationData {
 export interface LoginCredentials {
   username: string;
   password: string;
-  token: string;
-  refreshToken?: string;
-  user: UserRole;
-  message?: string;
-  firstname?: string;
-  lastname?: string;
+
 }
 
 export interface User {

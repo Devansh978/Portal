@@ -11,11 +11,14 @@ import { authService } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
+// Define UserRole type if not imported from elsewhere
+type UserRole = "super_admin" | "admin" | "builder" | "telecaller" | "broker" | "ca" | "user";
+
 export default function GlassLogin() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { login, user } = useAuth();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{ username: string; password: string; }>({
     username: "",
     password: "",
   });
@@ -36,46 +39,23 @@ export default function GlassLogin() {
     }
 
     try {
-      const response = await login(formData);
+      const response = await login({
+        username: formData.username,
+        password: formData.password,
+      });
 
-      // Check if login actually succeeded (response structure or user state)
-      if (response?.user || user) {
-        const loggedInUser = response?.user || user;
-
-        // Store token if provided
-        if ("token" in response && response.token) {
-          localStorage.setItem("authToken", response.token);
-        }
-
+      if ('email' in response) {
         toast({
           title: "Welcome back!",
-          description: `Logged in as ${loggedInUser.username}`,
+          description: `Logged in as ${response.email}`,
           duration: 5000,
         });
 
-        RoleBasedRedirect(loggedInUser.role);
-        return; // Exit early on success
+        // Convert role to lowercase for consistency with UserRole type
+        const role = response.role.toLowerCase() as UserRole;
+        RoleBasedRedirect(role);
       }
-
-      // If we reach here, login failed
-      throw new Error("Login failed - no user data received");
-
     } catch (err: any) {
-      // Check if user is actually logged in despite the error
-      if (user) {
-        console.warn("Login error thrown but user is authenticated:", err.message);
-
-        toast({
-          title: "Welcome back!",
-          description: `Logged in as ${user.username}`,
-          duration: 5000,
-        });
-
-        RoleBasedRedirect(user.role);
-        return;
-      }
-
-      // Handle actual login failures
       handleLoginError(err);
     } finally {
       setIsLoading(false);
@@ -92,7 +72,10 @@ export default function GlassLogin() {
       ca: "/ca/portfolio",
       user: "/dashboard"
     };
-    setLocation(roleRoutes[role] || "/dashboard");
+
+    // Convert role to lowercase to match keys
+    const normalizedRole = role.toLowerCase();
+    setLocation(roleRoutes[normalizedRole] || "/dashboard");
   };
 
   const handleLoginError = (err: any) => {
@@ -135,7 +118,7 @@ export default function GlassLogin() {
     try {
       const response = await authService.login({
         username: "test@email.com",
-        password: "396c2e"
+        password: "396c2e",
       });
 
       // Store token if provided
@@ -149,7 +132,7 @@ export default function GlassLogin() {
         duration: 5000,
       });
 
-      RoleBasedRedirect(response.user.role);
+      RoleBasedRedirect(response.role);
 
     } catch (err: any) {
       // Check if user is actually logged in despite the error

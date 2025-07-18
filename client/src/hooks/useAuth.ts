@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { authService, UserRole, type AuthUser } from "@/lib/auth";
+import { authService, type AuthUser } from "@/lib/auth";
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -46,12 +46,7 @@ export function useAuth() {
   }, []);
 
   const login = useCallback(async (credentials: {
-    username: string; password: string; token: string;
-    refreshToken?: string;
-    user: AuthUser["role"];
-    message?: string;
-    firstname?: string;
-    lastname?: string;
+    username: string; password: string;
   }) => {
     setIsLoading(true);
     setError(null);
@@ -59,12 +54,12 @@ export function useAuth() {
     try {
       const response = await authService.login(credentials);
       // If response.user is just a role, fetch the full user object
-      if (typeof response.user === "string") {
+      if (typeof response.email === "string") {
         const currentUser = await authService.getUser();
         setUser(currentUser);
         return { ...response, user: currentUser };
       } else {
-        setUser(response.user);
+        setUser(response.email);
         return response;
       }
     } catch (err) {

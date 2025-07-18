@@ -2,8 +2,6 @@
 import { apiRequest } from "./queryClient";
 
 export interface AuthUser {
-  id: number;
-  username: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -19,12 +17,6 @@ export type UserRole = "super_admin" | "admin" | "ca" | "builder" | "broker" | "
 export interface LoginCredentials {
   username: string;
   password: string;
-  token: string;
-  refreshToken?: string;
-  user: UserRole;
-  message?: string;
-  firstname?: string;
-  lastname?: string;
 }
 
 export interface RegisterData {
@@ -39,14 +31,13 @@ export interface RegisterData {
 }
 
 export interface AuthResponse {
-  username: string;
-  password: string;
+  email: string;
+  role: string; // Note: This is a string in the response, not UserRole type
   token: string;
-  refreshToken?: string;
-  user: AuthUser;
+  refreshToken: string;
   message?: string;
-  firstname?: string;
-  lastname?: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface ApiError {
@@ -73,7 +64,7 @@ class AuthService {
       this.token = localStorage.getItem("auth_token");
       this.refreshToken = localStorage.getItem("auth_refresh_token");
       const userData = localStorage.getItem("auth_user");
-      this.user = userData ? JSON.parse(userData) : null;
+
     }
   }
 
@@ -146,10 +137,18 @@ class AuthService {
         throw new Error("Invalid response from server");
       }
 
+      // Save auth data
+      const user: AuthUser = {
+        email: response.email,
+        firstName: response.firstName,
+        lastName: response.lastName,
+        role: response.role.toLowerCase() as UserRole, // Convert to lowercase to match UserRole type
+      };
+
       this.saveToStorage(
         response.token,
         response.refreshToken || "",
-        response.user
+        user
       );
       this.setupTokenRefresh();
 
@@ -169,22 +168,28 @@ class AuthService {
         credentials: 'include'
       });
 
-      // Validate response structure before checking auth
       if (!this.isValidAuthResponse(response)) {
         throw new Error("Invalid credentials");
       }
 
+      // Create user object from response
+      const user: AuthUser = {
+        email: response.email,
+        firstName: response.firstName,
+        lastName: response.lastName,
+        role: response.role.toLowerCase() as UserRole, // Convert to lowercase to match UserRole type
+      };
+
       // Save auth data
       this.saveToStorage(
         response.token,
-        response.refreshToken || "",
-        response.user
+        response.refreshToken,
+        user
       );
       this.setupTokenRefresh();
 
       return response;
     } catch (error) {
-      // Don't call handleApiError here - it always throws
       throw this.createAuthError(error, "Login failed");
     }
   }
@@ -218,11 +223,18 @@ class AuthService {
           Authorization: `Bearer ${this.refreshToken}`,
         },
       }).then(response => {
+        // Create user object from response
+        const user: AuthUser = {
+          email: response.email,
+          firstName: response.firstName,
+          lastName: response.lastName,
+          role: response.role.toLowerCase() as UserRole, // Convert to lowercase to match UserRole type
+        };
         if (this.isValidAuthResponse(response)) {
           this.saveToStorage(
             response.token,
             response.refreshToken || this.refreshToken || "",
-            response.user
+            user
           );
           this.setupTokenRefresh();
         }
@@ -264,28 +276,28 @@ class AuthService {
   //   return this.user;
   // }
 
-  // Verify email
-  async verifyEmail(token: string): Promise<AuthResponse> {
-    try {
-      const response = await apiRequest<AuthResponse>(`${this.baseUrl}/auth/verify-email`, {
-        method: "POST",
-        body: JSON.stringify({ token }),
-      });
+  // // Verify email
+  // async verifyEmail(token: string): Promise<AuthResponse> {
+  //   try {
+  //     const response = await apiRequest<AuthResponse>(`${this.baseUrl}/auth/verify-email`, {
+  //       method: "POST",
+  //       body: JSON.stringify({ token }),
+  //     });
 
-      if (this.isValidAuthResponse(response)) {
-        this.saveToStorage(
-          response.token,
-          response.refreshToken || this.refreshToken || "",
-          response.user
-        );
-        this.setupTokenRefresh();
-      }
+  //     if (this.isValidAuthResponse(response)) {
+  //       this.saveToStorage(
+  //         response.token,
+  //         response.refreshToken || this.refreshToken || "",
+  //         response.user
+  //       );
+  //       this.setupTokenRefresh();
+  //     }
 
-      return response;
-    } catch (error) {
-      throw this.createAuthError(error, "Email verification failed");
-    }
-  }
+  //     return response;
+  //   } catch (error) {
+  //     throw this.createAuthError(error, "Email verification failed");
+  //   }
+  // }
 
   // Request password reset
   async requestPasswordReset(email: string): Promise<{ message: string }> {
@@ -295,38 +307,55 @@ class AuthService {
     });
   }
 
-  // Reset password
-  async resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
-    try {
-      const response = await apiRequest<AuthResponse>(`${this.baseUrl}/auth/reset-password`, {
-        method: "POST",
-        body: JSON.stringify({ token, newPassword }),
-      });
+  // // Reset password
+  // async resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
+  //   try {
+  //     const response = await apiRequest<AuthResponse>(`${this.baseUrl}/auth/reset-password`, {
+  //       method: "POST",
+  //       body: JSON.stringify({ token, newPassword }),
+  //     });
 
-      if (this.isValidAuthResponse(response)) {
-        this.saveToStorage(
-          response.token,
-          response.refreshToken || "",
-          response.user
-        );
-        this.setupTokenRefresh();
-      }
+  //     if (this.isValidAuthResponse(response)) {
+  //       this.saveToStorage(
+  //         response.token,
+  //         response.refreshToken || "",
+  //         response.user
+  //       );
+  //       this.setupTokenRefresh();
+  //     }
 
-      return response;
-    } catch (error) {
-      throw this.createAuthError(error, "Password reset failed");
-    }
-  }
+  //     return response;
+  //   } catch (error) {
+  //     throw this.createAuthError(error, "Password reset failed");
+  //   }
+  // }
 
   // Validate auth response structure
+  // private isValidAuthResponse(response: any): response is AuthResponse {
+  //   return response &&
+  //     typeof response.token === 'string' &&
+  //     response.token.length > 0 &&
+  //     response.user &&
+  //     typeof response.user === 'object' &&
+  //     response.user.id;
+  // }
+  // Update your type guard to match the actual response structure
   private isValidAuthResponse(response: any): response is AuthResponse {
-    return response &&
+    return (
+      response &&
       typeof response.token === 'string' &&
       response.token.length > 0 &&
-      response.user &&
-      typeof response.user === 'object' &&
-      response.user.id;
+      typeof response.refreshToken === 'string' &&
+      response.refreshToken.length > 0 &&
+      typeof response.email === 'string' &&
+      typeof response.role === 'string' &&
+      typeof response.firstName === 'string' &&
+      typeof response.lastName === 'string'
+    );
   }
+
+  // If you want to transform the backend response to match AuthResponse
+  // (Removed unused transformAuthResponse method and example usage)
 
   // Get current token
   getToken(): string | null {
