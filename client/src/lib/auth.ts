@@ -10,6 +10,7 @@ export interface AuthUser {
   role: UserRole;
   isVerified?: boolean;
   createdAt?: string;
+  userId: string;
 }
 
 export type UserRole = "super_admin" | "admin" | "ca" | "builder" | "broker" | "user" | "telecaller";
@@ -38,6 +39,7 @@ export interface AuthResponse {
   message?: string;
   firstName: string;
   lastName: string;
+  userId: string;
 }
 
 export interface ApiError {
@@ -46,7 +48,7 @@ export interface ApiError {
   errors?: Record<string, string[]>;
 }
 
-class AuthService {
+export class AuthService {
   private token: string | null = null;
   private refreshToken: string | null = null;
   private user: AuthUser | null = null;
@@ -60,11 +62,22 @@ class AuthService {
 
   // Initialize from localStorage
   private loadFromStorage() {
+   
     if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("auth_token");
-      this.refreshToken = localStorage.getItem("auth_refresh_token");
-      const userData = localStorage.getItem("auth_user");
+      // Load auth data from localStorage
+      console.log("Loading auth data from localStorage");
 
+
+      this.token = localStorage.getItem("auth_token");
+
+      this.refreshToken = localStorage.getItem("auth_refresh_token");
+      this.user = JSON.parse(localStorage.getItem("auth_user") || "null");
+
+      console.log("Loaded auth data from localStorage:", {
+        token: this.token,
+        refreshToken: this.refreshToken,
+        user: this.user,
+      });
     }
   }
 
@@ -75,9 +88,16 @@ class AuthService {
     this.user = user;
 
     if (typeof window !== "undefined") {
+      console.log("Saving auth data to localStorage:", {
+        token,
+        refreshToken,
+        user,
+      });
       localStorage.setItem("auth_token", token);
+      
       localStorage.setItem("auth_refresh_token", refreshToken);
       localStorage.setItem("auth_user", JSON.stringify(user));
+
     }
   }
 
@@ -142,7 +162,8 @@ class AuthService {
         email: response.email,
         firstName: response.firstName,
         lastName: response.lastName,
-        role: response.role.toLowerCase() as UserRole, // Convert to lowercase to match UserRole type
+        role: response.role.toLowerCase() as UserRole,
+        userId: response.userId // Convert to lowercase to match UserRole type
       };
 
       this.saveToStorage(
@@ -177,7 +198,8 @@ class AuthService {
         email: response.email,
         firstName: response.firstName,
         lastName: response.lastName,
-        role: response.role.toLowerCase() as UserRole, // Convert to lowercase to match UserRole type
+        role: response.role.toLowerCase() as UserRole,
+        userId: response.userId // Convert to lowercase to match UserRole type
       };
 
       // Save auth data
@@ -228,7 +250,8 @@ class AuthService {
           email: response.email,
           firstName: response.firstName,
           lastName: response.lastName,
-          role: response.role.toLowerCase() as UserRole, // Convert to lowercase to match UserRole type
+          role: response.role.toLowerCase() as UserRole,
+          userId: response.userId // Convert to lowercase to match UserRole type
         };
         if (this.isValidAuthResponse(response)) {
           this.saveToStorage(
@@ -358,12 +381,12 @@ class AuthService {
   // (Removed unused transformAuthResponse method and example usage)
 
   // Get current token
-  getToken(): string | null {
+  public getToken(): string | null {
     return this.token;
   }
 
   // Get current user
-  getUser(): AuthUser | null {
+  public getUser(): AuthUser | null {
     return this.user;
   }
 
