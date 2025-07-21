@@ -140,8 +140,7 @@ export async function apiRequest<T = any>(
       }
     }
 
-    console.error('[API Request Failed]', error);
-    throw error;
+
   }
 }
 

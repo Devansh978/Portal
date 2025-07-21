@@ -114,7 +114,10 @@ export interface ProjectsResponse {
   projects: Project[];
   total: number;
 }
-
+export interface UpdateProjectsResponse {
+  projects: Project[];
+  total: number;
+}
 export interface TelecallersResponse {
   telecallers: Telecaller[];
   total: number;

@@ -11,37 +11,55 @@ import { EnhancedRoleBasedNavbar } from "@/components/layout/EnhancedRoleBasedNa
 import * as RoleBasedNavbar from "@/components/layout/RoleBasedNavbar";
 import { EnhancedCreateProjectDialog } from "@/components/dashboard/EnhancedCreateProjectDialog";
 import { EnhancedAssignLeadDialog } from "@/components/dashboard/EnhancedAssignLeadDialog";
-import {CreateTeam} from "@/components/dashboard/CreateTeam";
+import { CreateTeam } from "@/components/dashboard/CreateTeam";
 import { useAuth } from "@/hooks/useAuth";
+import { authService } from "@/lib/auth";
+// import { api } from "@/lib/api";
 
-// Simplified types for dashboard
-interface DashboardProject {
-  id: number;
-  name: string;
-  title: string;
-  type: string;
-  location: string;
-  builder: string
-  totalUnits: number;
-  expectedRevenue: number;
-  completionDate: string;
-  status: string;
+const API_BASE_URL = 'https://homobiebackend-railway-production.up.railway.app';
+// const token = localStorage.getItem("auth_token");
+// const userId = JSON.parse(localStorage.getItem("auth_user") || "null").userId;
+
+// Types matching backend DTOs
+interface LocationResponse {
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  city: string;
+  state: string;
+  pincode: string;
 }
 
-interface DashboardTelecaller {
-  id: number;
-  user: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+interface ProjectResponse {
+  projectName: string;
+  location: LocationResponse;
+  status: string;
+  projectType: string;
+  projectId: string;
+  budget: number;
+  units: number;
+  completedAt?: string;
+}
+interface UpdateProjectResponse {
+  projectName: string;
+  location: LocationResponse;
+  status: string;
+  projectType: string;
+  description?: string;
+  completedAt?: string;
+}
+interface TelecallerResponse {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
   role: string;
   status: string;
   totalCalls: number;
 }
 
-interface DashboardLead {
-  id: number;
+interface LeadResponse {
+  leadId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -56,29 +74,69 @@ export default function SimplifiedBuilderDashboard() {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [showAssignLead, setShowAssignLead] = useState(false);
-  // const [showCreateProject, setShowCreateProject] = useState(false);
-  const [selectedLeads, setSelectedLeads] = useState<any[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<LeadResponse[]>([]);
   const { toast } = useToast();
   const { user, logout } = useAuth();
 
-  // Mock data for now - replace with real API calls when auth is fixed
-  const mockProjects: DashboardProject[] = [
-    { id: 1, name: "Luxury Heights", title: "Luxury Heights", location: "Gurgaon", status: "construction", totalUnits: 150, expectedRevenue: 50000000 },
-    { id: 2, name: "Green Valley",  title: "Luxury Heights", location: "Noida", status: "planning", totalUnits: 80, expectedRevenue: 25000000 },
-    { id: 3, name: "Sunset Residency", title: "Luxury Heights", location: "Mumbai", status: "ready", totalUnits: 200, expectedRevenue: 75000000 },
-  ];
+  const userId = user?.userId || "null";
+  const token = localStorage.getItem("auth_token") || "";
 
-  const mockTelecallers: DashboardTelecaller[] = [
-    { id: 1, user: { firstName: "John", lastName: "Doe", email: "john@example.com" }, role: "telecaller", status: "active", totalCalls: 45 },
-    { id: 2, user: { firstName: "Jane", lastName: "Smith", email: "jane@example.com" }, role: "telecaller", status: "active", totalCalls: 38 },
-    { id: 3, user: { firstName: "Mike", lastName: "Johnson", email: "mike@example.com" }, role: "telecaller", status: "busy", totalCalls: 52 },
-  ];
+  const {
+    data: projects = []
+  } = useQuery<ProjectResponse[]>({
+    queryKey: ['builderProjects'],
+    queryFn: async () => {
 
-  const mockLeads: DashboardLead[] = [
-    { id: 1, firstName: "Alice", lastName: "Brown", email: "alice@example.com", loanType: "home_loan", loanAmount: 2500000, status: "new" },
-    { id: 2, firstName: "Bob", lastName: "Wilson", email: "bob@example.com", loanType: "business_loan", loanAmount: 5000000, status: "contacted" },
-    { id: 3, firstName: "Carol", lastName: "Davis", email: "carol@example.com", loanType: "loan_against_property", loanAmount: 3500000, status: "new" },
-  ];
+      const response = await fetch(`${API_BASE_URL}/project/get/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      return await response.json();
+    }
+  });
+  //update api for projects
+  // const {
+  //   data: projects = []
+  // } = useQuery<UpdateProjectResponse[]>({
+  //   queryKey: ['builderProjects'],
+  //   queryFn: async () => {
+
+  //     const response = await fetch(`${API_BASE_URL}/project/update/${userId}`, {
+  //       headers: {
+  //         'Authorization': `Bearer ${token}`,
+  //         'Content-Type': 'application/json'
+  //       }
+  //     });
+
+  //     if (!response.ok) {
+  //       throw new Error('Network response was not ok');
+  //     }
+
+  //     return await response.json();
+  //   }
+  // });
+  const { data: telecallers = [], isLoading: telecallersLoading } = useQuery<TelecallerResponse[]>({
+    queryKey: ['builderTelecallers'],
+    queryFn: async () => {
+      const response = await api.get('/api/team/telecallers');
+      return response.data;
+    }
+  });
+
+  const { data: leads = [], isLoading: leadsLoading } = useQuery<LeadResponse[]>({
+    queryKey: ['builderLeads'],
+    queryFn: async () => {
+      const response = await api.get('/api/leads/unassigned');
+      return response.data;
+    }
+  });
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -103,28 +161,28 @@ export default function SimplifiedBuilderDashboard() {
   const stats = [
     {
       title: "Active Projects",
-      value: mockProjects.filter(p => p.status === "construction").length,
+      value: projects.filter(p => p.status === "construction").length,
       icon: Building2,
       change: "+12%",
       gradient: "from-emerald-500/20 to-teal-500/20",
     },
     {
       title: "Total Telecallers",
-      value: mockTelecallers.length,
+      value: telecallers.length,
       icon: Users,
       change: "+8%",
       gradient: "from-blue-500/20 to-indigo-500/20",
     },
     {
       title: "Unassigned Leads",
-      value: mockLeads.filter(l => l.status === "new").length,
+      value: leads.filter(l => l.status === "new").length,
       icon: Target,
       change: "-5%",
       gradient: "from-orange-500/20 to-red-500/20",
     },
     {
       title: "Completed Projects",
-      value: mockProjects.filter(p => p.status === "ready").length,
+      value: projects.filter(p => p.status === "completed").length,
       icon: BarChart3,
       change: "+25%",
       gradient: "from-purple-500/20 to-pink-500/20",
@@ -155,15 +213,19 @@ export default function SimplifiedBuilderDashboard() {
     },
   ];
 
+  const formatLocation = (location: LocationResponse) => {
+    return `${location.city}, ${location.state}`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/30 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-      
+
       <EnhancedRoleBasedNavbar user={user} onLogout={logout} />
-      
+
       <motion.div
         variants={containerVariants}
         initial="hidden"
@@ -221,14 +283,14 @@ export default function SimplifiedBuilderDashboard() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: index * 0.1 + 0.5, duration: 0.5 }}
               >
-                <div 
+                <div
                   className="cursor-pointer group h-full"
                   onClick={action.action}
                 >
-                  <GlassCard 
-                    gradient="neutral" 
-                    blur="md" 
-                    hover 
+                  <GlassCard
+                    gradient="neutral"
+                    blur="md"
+                    hover
                     className="p-6 h-full"
                   >
                     <div className={`p-4 rounded-xl bg-gradient-to-r ${action.gradient} mb-4 group-hover:scale-110 transition-transform duration-300`}>
@@ -252,11 +314,10 @@ export default function SimplifiedBuilderDashboard() {
                   key={tab}
                   variant={activeTab === tab ? "default" : "ghost"}
                   onClick={() => setActiveTab(tab)}
-                  className={`capitalize flex-1 min-w-0 text-xs sm:text-sm ${
-                    activeTab === tab 
-                      ? "bg-emerald-500/20 text-emerald-100 border-emerald-500/30" 
-                      : "text-gray-300 hover:text-white hover:bg-white/10"
-                  }`}
+                  className={`capitalize flex-1 min-w-0 text-xs sm:text-sm ${activeTab === tab
+                    ? "bg-emerald-500/20 text-emerald-100 border-emerald-500/30"
+                    : "text-gray-300 hover:text-white hover:bg-white/10"
+                    }`}
                 >
                   {tab}
                 </Button>
@@ -278,11 +339,11 @@ export default function SimplifiedBuilderDashboard() {
                   </Button>
                 </div>
                 <div className="space-y-3">
-                  {mockProjects.slice(0, 3).map((project) => (
-                    <div key={project.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  {projects.slice(0, 3).map((project) => (
+                    <div key={project.projectId} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                       <div>
-                        <p className="font-medium text-white">{project.name}</p>
-                        <p className="text-sm text-gray-300">{project.location}</p>
+                        <p className="font-medium text-white">{project.projectName}</p>
+                        <p className="text-sm text-gray-300">{formatLocation(project.location)}</p>
                       </div>
                       <Badge variant={project.status === "construction" ? "default" : "secondary"}>
                         {project.status}
@@ -301,17 +362,17 @@ export default function SimplifiedBuilderDashboard() {
                   </Button>
                 </div>
                 <div className="space-y-3">
-                  {mockTelecallers.slice(0, 3).map((telecaller) => (
-                    <div key={telecaller.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  {telecallers.slice(0, 3).map((telecaller) => (
+                    <div key={telecaller.userId} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-gradient-to-r from-emerald-400 to-blue-400 rounded-full flex items-center justify-center">
                           <span className="text-xs font-semibold text-white">
-                            {telecaller.user.firstName[0]}{telecaller.user.lastName[0]}
+                            {telecaller.firstName[0]}{telecaller.lastName[0]}
                           </span>
                         </div>
                         <div>
                           <p className="font-medium text-white">
-                            {telecaller.user.firstName} {telecaller.user.lastName}
+                            {telecaller.firstName} {telecaller.lastName}
                           </p>
                           <p className="text-sm text-gray-300">{telecaller.role}</p>
                         </div>
@@ -342,23 +403,20 @@ export default function SimplifiedBuilderDashboard() {
                   </div>
 
                   <Button onClick={() => setShowCreateProject(true)}>
-                  
-
-      
                     <Plus className="h-4 w-4 mr-2" />
                     New Project
                   </Button>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockProjects
-                  .filter(project => 
-                    project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    project.location.toLowerCase().includes(searchTerm.toLowerCase())
+                {projects
+                  .filter(project =>
+                    project.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    formatLocation(project.location).toLowerCase().includes(searchTerm.toLowerCase())
                   )
                   .map((project) => (
                     <motion.div
-                      key={project.id}
+                      key={project.projectId}
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       whileHover={{ scale: 1.02 }}
@@ -368,14 +426,13 @@ export default function SimplifiedBuilderDashboard() {
                         <Badge variant={project.status === "construction" ? "default" : "secondary"}>
                           {project.status}
                         </Badge>
-                        <span className="text-xs text-gray-400">#{project.id}</span>
+                        <span className="text-xs text-gray-400">#{project.projectId.slice(0, 8)}</span>
                       </div>
-                      <h4 className="font-semibold text-white mb-2">{project.name}</h4>
-                      <h4 className="font-semibold text-white mb-2">{project.title}</h4>
-                      <p className="text-sm text-gray-300 mb-3">{project.location}</p>
+                      <h4 className="font-semibold text-white mb-2">{project.projectName}</h4>
+                      <p className="text-sm text-gray-300 mb-3">{formatLocation(project.location)}</p>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">Units: {project.totalUnits}</span>
-                        <span className="text-xs text-emerald-400">₹{project.expectedRevenue.toLocaleString()}</span>
+                        <span className="text-xs text-gray-400">Units: {project.units}</span>
+                        <span className="text-xs text-emerald-400">₹{project.budget.toLocaleString()}</span>
                       </div>
                     </motion.div>
                   ))}
@@ -393,9 +450,9 @@ export default function SimplifiedBuilderDashboard() {
                 </Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockTelecallers.map((telecaller) => (
+                {telecallers.map((telecaller) => (
                   <motion.div
-                    key={telecaller.id}
+                    key={telecaller.userId}
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.02 }}
@@ -404,14 +461,14 @@ export default function SimplifiedBuilderDashboard() {
                     <div className="flex items-center space-x-3 mb-3">
                       <div className="w-10 h-10 bg-gradient-to-r from-emerald-400 to-blue-400 rounded-full flex items-center justify-center">
                         <span className="text-sm font-semibold text-white">
-                          {telecaller.user.firstName[0]}{telecaller.user.lastName[0]}
+                          {telecaller.firstName[0]}{telecaller.lastName[0]}
                         </span>
                       </div>
                       <div>
                         <p className="font-medium text-white">
-                          {telecaller.user.firstName} {telecaller.user.lastName}
+                          {telecaller.firstName} {telecaller.lastName}
                         </p>
-                        <p className="text-xs text-gray-400">{telecaller.user.email}</p>
+                        <p className="text-xs text-gray-400">{telecaller.email}</p>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -441,7 +498,7 @@ export default function SimplifiedBuilderDashboard() {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-white">Lead Assignment</h3>
                 <Button onClick={() => {
-                  setSelectedLeads(mockLeads.filter(lead => lead.status === "new"));
+                  setSelectedLeads(leads.filter(lead => lead.status === "new"));
                   setShowAssignLead(true);
                 }}>
                   <Target className="h-4 w-4 mr-2" />
@@ -449,9 +506,9 @@ export default function SimplifiedBuilderDashboard() {
                 </Button>
               </div>
               <div className="space-y-3">
-                {mockLeads.slice(0, 10).map((lead) => (
+                {leads.slice(0, 10).map((lead) => (
                   <motion.div
-                    key={lead.id}
+                    key={lead.leadId}
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
@@ -494,16 +551,16 @@ export default function SimplifiedBuilderDashboard() {
       </motion.div>
 
       {/* Dialogs */}
-      <EnhancedCreateProjectDialog 
-        open={showCreateProject} 
-        onOpenChange={setShowCreateProject} 
+      <EnhancedCreateProjectDialog
+        open={showCreateProject}
+        onOpenChange={setShowCreateProject}
       />
-      <CreateTeam 
-        open={showCreateTeam} 
-        onOpenChange={setShowCreateTeam} 
+      <CreateTeam
+        open={showCreateTeam}
+        onOpenChange={setShowCreateTeam}
       />
-      <EnhancedAssignLeadDialog 
-        open={showAssignLead} 
+      <EnhancedAssignLeadDialog
+        open={showAssignLead}
         onOpenChange={setShowAssignLead}
         selectedLeads={selectedLeads}
       />
